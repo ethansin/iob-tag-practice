@@ -1,2 +1,5 @@
 dataset
+projects
 .venv
+.vscode
+__pycache__

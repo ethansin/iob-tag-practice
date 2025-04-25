@@ -1,5 +1,6 @@
 import pandas as pd
 import torch as nn
+import pickle
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 
@@ -38,6 +39,10 @@ class Vocab():
     
     def get_label_id(self, label):
         return self.label2idx[label]
+    
+def vocab_loader(project_name: str) -> Vocab:
+    with open(f"project/{project_name}/vocab.pkl", "rb") as f:
+        return pickle.load(f)
 
 def file_reader(file_path: str) -> str:
     with open(file_path, "r") as file:

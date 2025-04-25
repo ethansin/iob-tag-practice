@@ -3,6 +3,7 @@ import torch as nn
 import pickle
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 class Vocab():
     def __init__(self, text_dataset):
@@ -40,8 +41,29 @@ class Vocab():
     def get_label_id(self, label):
         return self.label2idx[label]
     
+class NERDataset(Dataset):
+    def __init__(self, text_dataset: list, vocab: Vocab):
+        self.token_tensors = []
+        self.label_tensors = []
+
+        for token_sequence, label_sequence in tqdm(text_dataset):
+            self.token_tensors.append(tensorizer(token_sequence, vocab))
+            self.label_tensors.append(tensorizer(label_sequence, vocab, is_label=True))
+
+        if len(self.token_tensors) != len(self.label_tensors):
+            raise ValueError
+
+    def __len__(self):
+        return len(self.token_tensors)
+    
+    def __getitem__(self, idx):
+        token_tensor = self.token_tensors[idx]
+        label_tensor = self.label_tensors[idx]
+
+        return token_tensor, label_tensor
+    
 def vocab_loader(project_name: str) -> Vocab:
-    with open(f"project/{project_name}/vocab.pkl", "rb") as f:
+    with open(f"projects/{project_name}/vocab.pkl", "rb") as f:
         return pickle.load(f)
 
 def file_reader(file_path: str) -> str:
@@ -69,28 +91,11 @@ def tensorizer(sequence: list, vocab: Vocab, is_label: bool = False):
     output_tensor = nn.zeros(len(sequence), dtype=nn.long)
     if is_label:
         for idx in range(len(sequence)):
-            output_tensor[idx] = vocab.label2idx[sequence[idx]]
+            output_tensor[idx] = vocab.get_label_id(sequence[idx])
     else:
         for idx in range(len(sequence)):
-            output_tensor[idx] = vocab.token2idx[sequence[idx]]
+            output_tensor[idx] = vocab.get_token_id(sequence[idx])
     return output_tensor
-
-class NERDataset(Dataset):
-    def __init__(self, dataset_filepath):
-        file_contents = file_reader(dataset_filepath)
-        self.utterances = content_parser(file_contents)
-
-    def __len__(self):
-        return len(self.utterances)
-    
-    def __getitem__(self, idx):
-        sequence_tokens = []
-        sequence_labels = []
-        for token in self.utterances[idx]:
-            parsed_annotation = token.split(" ")
-            sequence_tokens.append(parsed_annotation[0])
-            sequence_labels.append(parsed_annotation[-1])
-        return sequence_tokens, sequence_labels
 
 def main():
     train_dataset = NERDataset("dataset/ner.train")

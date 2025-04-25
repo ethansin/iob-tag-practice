@@ -45,7 +45,9 @@ def file_reader(file_path: str) -> str:
 
 def content_parser(file_content: str) -> list[list[str]]:
     parsed_datapoints = file_content.split("\n\n")
-    tokenized_datapoints = [datapoint.split("\n") for datapoint in parsed_datapoints]
+    tokenized_datapoints = []
+    for datapoint in parsed_datapoints:
+        tokenized_datapoints.append([token for token in datapoint.split("\n") if token != ''])
     return tokenized_datapoints
 
 def read_ner_files(file_path: str) -> list:
@@ -58,9 +60,15 @@ def read_ner_files(file_path: str) -> list:
         text_dataset.append((token_sequence, label_sequence))
     return text_dataset
 
-def tensorizer(sequence: list, vocab: Vocab):
-
-    pass
+def tensorizer(sequence: list, vocab: Vocab, is_label: bool = False):
+    output_tensor = nn.zeros(len(sequence), dtype=nn.long)
+    if is_label:
+        for idx in range(len(sequence)):
+            output_tensor[idx] = vocab.label2idx[sequence[idx]]
+    else:
+        for idx in range(len(sequence)):
+            output_tensor[idx] = vocab.token2idx[sequence[idx]]
+    return output_tensor
 
 class NERDataset(Dataset):
     def __init__(self, dataset_filepath):

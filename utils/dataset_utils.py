@@ -1,4 +1,5 @@
 import pandas as pd
+import torch as nn
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 
@@ -14,6 +15,13 @@ class Vocab():
                     self.token2idx[token] = len(self.token2idx)
         self.idx2token = {idx:token for idx, token in self.token2idx.items()}
 
+        self.label2idx = {}
+        for utterance in text_dataset:
+            for label in utterance[-1]:
+                if label not in self.label2idx:
+                    self.label2idx[label] = len(self.label2idx)
+        self.label2idx = {idx:label for idx, label in self.label2idx.items()}
+
     def add_vocab(self, token):
         if token not in self.token2idx:
             self.token2idx[token] = len(self.token2idx)
@@ -27,6 +35,9 @@ class Vocab():
             return self.token2idx[token]
         else:
             return 1
+    
+    def get_label_id(self, label):
+        return self.label2idx[label]
 
 def file_reader(file_path: str) -> str:
     with open(file_path, "r") as file:
@@ -47,7 +58,8 @@ def read_ner_files(file_path: str) -> list:
         text_dataset.append((token_sequence, label_sequence))
     return text_dataset
 
-def tensorizer():
+def tensorizer(sequence: list, vocab: Vocab):
+
     pass
 
 class NERDataset(Dataset):

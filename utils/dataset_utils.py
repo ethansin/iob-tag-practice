@@ -1,9 +1,12 @@
 import pandas as pd
-import torch as nn
+import torch
 import pickle
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Vocab():
     def __init__(self, text_dataset):
@@ -17,7 +20,9 @@ class Vocab():
                     self.token2idx[token] = len(self.token2idx)
         self.idx2token = {idx:token for idx, token in self.token2idx.items()}
 
-        self.label2idx = {}
+        self.label2idx = {
+            "<pad>": 0,
+        }
         for utterance in text_dataset:
             for label in utterance[-1]:
                 if label not in self.label2idx:
@@ -62,6 +67,10 @@ class NERDataset(Dataset):
 
         return token_tensor, label_tensor
     
+def collate_fn(batch):
+    token_batch, label_batch = zip(*batch)
+    return (pad_sequence(token_batch, batch_first=True, padding_value=0), pad_sequence(label_batch, batch_first=True, padding_value=0))
+    
 def vocab_loader(project_name: str) -> Vocab:
     with open(f"projects/{project_name}/vocab.pkl", "rb") as f:
         return pickle.load(f)
@@ -88,7 +97,7 @@ def read_ner_files(file_path: str) -> list:
     return text_dataset
 
 def tensorizer(sequence: list, vocab: Vocab, is_label: bool = False):
-    output_tensor = nn.zeros(len(sequence), dtype=nn.long)
+    output_tensor = torch.zeros(len(sequence), dtype=torch.long).to(device)
     if is_label:
         for idx in range(len(sequence)):
             output_tensor[idx] = vocab.get_label_id(sequence[idx])
@@ -96,13 +105,3 @@ def tensorizer(sequence: list, vocab: Vocab, is_label: bool = False):
         for idx in range(len(sequence)):
             output_tensor[idx] = vocab.get_token_id(sequence[idx])
     return output_tensor
-
-def main():
-    train_dataset = NERDataset("dataset/ner.train")
-    dev_dataset = NERDataset("dataset/ner.dev")
-    train_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    dev_dataloader = DataLoader(dev_dataset, batch_size=64, shuffle=True)
-    return
-
-if __name__ == "__main__":
-    main()

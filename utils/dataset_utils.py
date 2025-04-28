@@ -69,7 +69,8 @@ class NERDataset(Dataset):
     
 def collate_fn(batch):
     token_batch, label_batch = zip(*batch)
-    return (pad_sequence(token_batch, batch_first=True, padding_value=0), pad_sequence(label_batch, batch_first=True, padding_value=0))
+    batch_lengths = [len(sequence) for sequence in token_batch]
+    return pad_sequence(token_batch, batch_first=True, padding_value=0), pad_sequence(label_batch, batch_first=True, padding_value=0), batch_lengths
     
 def vocab_loader(project_name: str) -> Vocab:
     with open(f"projects/{project_name}/vocab.pkl", "rb") as f:

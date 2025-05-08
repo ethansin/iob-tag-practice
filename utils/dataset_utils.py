@@ -22,6 +22,8 @@ class Vocab():
 
         self.label2idx = {
             "<pad>": 0,
+            "<start>": 1,
+            "<stop>": 2,
         }
         for utterance in text_dataset:
             for label in utterance[-1]:

@@ -20,12 +20,10 @@ def create_dataset(dataset_filepath, project_name="test"):
 def training_loop(train_dataloader: DataLoader, val_dataloader: DataLoader, project_name="test"):
 
     vocab = vocab_loader(project_name)
-    vocab_size = vocab.length()
     embedding_dim = 50
     hidden_dim = 128
-    output_dim = len(vocab.label2idx)
 
-    model = LSTM(vocab_size, embedding_dim, hidden_dim, output_dim).to(device)
+    model = LSTM(vocab, embedding_dim, hidden_dim).to(device)
 
     num_epochs = 25
     lr = 1e-5
@@ -46,7 +44,7 @@ def training_loop(train_dataloader: DataLoader, val_dataloader: DataLoader, proj
             optimizer.zero_grad()
             outputs = model(batch_seqs, batch_lengths)
 
-            outputs = outputs.view(-1, output_dim)
+            outputs = outputs.view(-1, len(vocab.label2idx))
             batch_labels = batch_labels.view(-1)
 
             loss = criterion(outputs, batch_labels)

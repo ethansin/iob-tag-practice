@@ -27,11 +27,13 @@ def training_loop(train_dataloader: DataLoader, val_dataloader: DataLoader, proj
 
     model = LSTM(vocab_size, embedding_dim, hidden_dim, output_dim).to(device)
 
-    num_epochs = 1
+    num_epochs = 25
     lr = 1e-5
 
     criterion = nn.CrossEntropyLoss(ignore_index=0)
     optimizer = Adam(model.parameters(), lr=lr)
+
+    prev_accuracy = 0
 
     for epoch in range(num_epochs):
         model.train()
@@ -75,6 +77,10 @@ def training_loop(train_dataloader: DataLoader, val_dataloader: DataLoader, proj
 
         accuracy = correct / total if total > 0 else 0
         print(f"Validation Accuracy: {accuracy:.4f}")
+
+        if accuracy < prev_accuracy:
+            break
+        prev_accuracy = accuracy
 
 if __name__ == "__main__":
     train_dataloader = create_dataset("dataset/ner.train", "test")

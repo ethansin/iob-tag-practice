@@ -30,6 +30,7 @@ class Vocab():
                 if label not in self.label2idx:
                     self.label2idx[label] = len(self.label2idx)
         self.label2idx = {idx:label for idx, label in self.label2idx.items()}
+        self.tagset_size = len(self.label2idx)
 
     def add_vocab(self, token):
         if token not in self.token2idx:

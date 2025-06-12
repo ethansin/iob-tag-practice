@@ -5,9 +5,9 @@ from utils.dataset_utils import Vocab
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.mps.is_available() else "cpu")
 
-class LSTM(nn.Module):
+class BiLSTM_CRF(nn.Module):
     def __init__(self, vocab: Vocab, embedding_dim, hidden_dim, batch_size=64, num_layers=1, bidirectional=True, dropout=0.5):
-        super(LSTM, self).__init__()
+        super(BiLSTM_CRF, self).__init__()
         
         self.vocab = vocab
 
@@ -29,9 +29,15 @@ class LSTM(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
 
-    def argmax(vec):
+    def argmax(self, vec):
         _, idx = torch.max(vec, 1)
         return idx.item()
+    
+    def log_sum_exp(self, vec):
+        max_score = vec[0, self.argmax(vec)]
+        max_score_broadcast = max_score.view(1, -1).expand(1, vec.size()[1])
+        return max_score + \
+            torch.log(torch.sum(torch.exp(vec - max_score_broadcast)))
 
     def get_lstm_feats(self, x, lengths):
 
@@ -72,20 +78,20 @@ class LSTM(nn.Module):
                     transition_scores = self.crf_transitions[next_tag].view(1, -1)
                     next_tag_var = forward_var + emission_scores + transition_scores
 
-                    curr_alphas.append(torch.logsumexp(next_tag_var).view(1))
+                    curr_alphas.append(self.log_sum_exp(next_tag_var).view(1))
                 
                 forward_var = torch.cat(curr_alphas).view(1, -1)
 
-            terminal_var = forward_var + self.crf_transitions(self.vocab.label2idx["<stop>"])
-            alphas.append(torch.logsumexp(terminal_var))
+            terminal_var = forward_var + self.crf_transitions[self.vocab.label2idx["<stop>"]]
+            alphas.append(self.log_sum_exp(terminal_var))
 
         return alphas
     
     def score_sentence(self, sentence, tags):
         score = torch.zeros(1).to(device)
-        tags = torch.cat([torch.tensor([self.vocab.label2idx["<start>"]], dtype=torch.long), tags])
+        tags = torch.cat([torch.tensor([self.vocab.label2idx["<start>"]], dtype=torch.long).to(device), tags])
         for i, token in enumerate(sentence):
-            score = score + self.crf_transitions[tags[i+1], tags] + token[tags[i+1]]
+            score = score + self.crf_transitions[tags[i+1], tags[i]] + token[tags[i+1]]
         score = score + self.crf_transitions[self.vocab.label2idx["<stop>"], tags[-1]]
         return score
     
@@ -107,7 +113,7 @@ class LSTM(nn.Module):
 
         for i, sentence in enumerate(batch):
             backpointers = []
-            init_viterbi = torch.full((1, self.vocab.tagset_size), -10000.)
+            init_viterbi = torch.full((1, self.vocab.tagset_size), -10000.).to(device)
             init_viterbi[0][self.vocab.label2idx["<start>"]] = 0
 
             forward_var = init_viterbi
@@ -129,7 +135,7 @@ class LSTM(nn.Module):
             path_score = terminal_var[0][best_tag_id]
 
             best_path = [best_tag_id]
-            for timestep_backpointers in reversed[backpointers]:
+            for timestep_backpointers in reversed(backpointers):
                 best_tag_id = timestep_backpointers[best_tag_id]
                 best_path.append(best_tag_id)
 
@@ -142,16 +148,24 @@ class LSTM(nn.Module):
 
         return path_scores, best_paths
 
-    def forward(self, x, lengths):
+    def forward(self, x, lengths, is_crf=False):
+        
+        if is_crf:
+            lstm_feats = self.get_lstm_feats(x, lengths)
 
-        embedded = self.dropout(self.embedding(x))
+            scores, tag_sequences = self.viterbi_decode(lstm_feats, lengths)
 
-        pack_embedded = pack_padded_sequence(embedded, lengths=lengths, batch_first=True, enforce_sorted=False)
+            return scores, tag_sequences
 
-        lstm_out, _ = self.lstm(pack_embedded, (self.h_0, self.c_0))
+        else:
+            embedded = self.dropout(self.embedding(x))
 
-        output, _ = pad_packed_sequence(lstm_out, batch_first=True)
+            pack_embedded = pack_padded_sequence(embedded, lengths=lengths, batch_first=True, enforce_sorted=False)
 
-        logits = self.fc(self.dropout(output))
+            lstm_out, _ = self.lstm(pack_embedded, (self.h_0, self.c_0))
 
-        return logits
+            output, _ = pad_packed_sequence(lstm_out, batch_first=True)
+
+            logits = self.fc(self.dropout(output))
+
+            return logits
